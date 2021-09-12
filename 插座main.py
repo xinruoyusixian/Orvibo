@@ -3,7 +3,7 @@ import bafa
         
 
 try:
-    ##定时
+    ##瀹氭椂
     try:
       import task
     except:
