@@ -1,7 +1,79 @@
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#PWM 工作模板#
+#pwm0 = PWM(Pin(0))      # 通过Pin对象来创建PWM对象
+#pwm0.freq()             # 获得当前的PWM频率
+#pwm0.freq(1000)         # 设置PWM频率
+#pwm0.duty()             # 获得当前的PWM占空比
+#pwm0.duty(200)          # 设置占空比
+#PWM 简写
+#pwm2 = PWM(Pin(2), freq=200, duty=1099)# 创建PWM同时设置参数
+#pwm0.deinit()           # 关闭PWM
+#上传温度
+import  urequests
 import network
 from machine import Pin, PWM ,RTC,Timer
-import time,machine,ntptime,sys
+import time,dht,machine,ujson,ntptime,sys
+
+
+
+
+#测温度
+def dhts(pin,dh=11):
+  if dh==11:
+    d=dht.DHT11(machine.Pin(pin))
+  if dh==22:
+    d=dht.DHT22(machine.Pin(pin))
+  a=[]
+  try:
+      d.measure() 
+      time.sleep(0.5)
+      #print ("---------------------")
+      #print ("温度", d.temperature() )
+      #print ("湿度" ,d.humidity())
+      a=[d.temperature(),d.humidity()]
+    #except OSError as e:
+  except Exception as e:
+       #print ("出错")
+       a=['err','err']
+       pass
+  return a
+
+
+
+
 def ap(ssd,pwd=''):
     AP= network.WLAN(network.AP_IF)
     if ssd=='':
@@ -117,10 +189,15 @@ def wifi(ssd='',pwd='',hostname="MicroPython"):
       wifi0.disconnect()
       _s_time=time.time()
       if not wifi0.isconnected(): #判断WIFI连接状态
+
           print('[WIFI]:Connect to',ssd)
+
           wifi0.connect(ssd, pwd) #essid为WIFI名称,password为WIFI密码
+
           while not wifi0.isconnected():
+
             if (time.time()- _s_time)>5:
+
               print('[WIFI]:Connect Faied')
               return (wifi0,False)
     
@@ -130,38 +207,31 @@ def wifi(ssd='',pwd='',hostname="MicroPython"):
 class btn:
   
   def __init__(self,p):
+    self.time_ms=time.ticks_ms
     self.time=0
     self._btn=Pin(p,Pin.IN)
     self.diff_time=0
     self.timer=-999
-    self.time_old=0 
     self.press_time=400 #长按最小时间
     self.click_time=80 #单击最小时间
-    self.double_click_time_min=250 #最小双击间隔
-    self.double_click_time_min=250 #最小双击间隔
-    self.diff_err_time=80  #误差时间
     self._btn.irq(handler=self.FALLING,trigger=(Pin.IRQ_FALLING))
     tim=Timer(self.timer)     
     tim.init(period=1, mode=Timer.PERIODIC, callback=self.check)     
     self.cb_press=None
     self.cb_click=None
-  def isset(self,v): 
-   try : 
-     type (eval(v)) 
-   except : 
-     return  0 
-   else : 
-     return  1    
-     
+    self.isNotRising=1
+    
+
   def FALLING(self,_e=0):
-      self.time_old=self.time
-      self.time=time.ticks_ms()
+      self.isNotRising=1
+      self.time=self.time_ms()
       self._btn.irq(handler=self.RISING,trigger=(Pin.IRQ_RISING))
       
 
   def RISING(self,_e=0):
-      tmp=time.ticks_ms()-self.time
-      if tmp<self.diff_err_time:
+      self.isNotRising=0
+      tmp=self.time_ms()-self.time
+      if tmp<self.click_time:
         return
       self.diff_time=tmp
       self._btn.irq(handler=self.FALLING,trigger=(Pin.IRQ_FALLING))
@@ -170,25 +240,81 @@ class btn:
       self.cb_press=cb
       self.press_time= self.press_time if s==0 else s
       
-  def click(self,cb,s=0):
+  def click(self,cb):
       self.cb_click=cb
-      self.press_time= self.press_time if s==0 else s  
   def check(self,_e=0):
-    
-      if self.diff_time >self.press_time:
-        print("press")
-        if self.cb_press.__class__.__name__ != 'NoneType':
-          self.cb_press()
-        self.diff_time=0
-        
+      if self.time==0:
         return
- # 双击 暂未完成 dc=time.ticks_ms()-self.time_old
-     
-      if self.diff_time >self.click_time:
+      realTime=self.time_ms()
+      if realTime-self.time>self.press_time and self.isNotRising==1:
+          print("press")
+          if self.cb_press.__class__.__name__ != 'NoneType':
+            self.cb_press()
+          self.time=0
+          return
+
+      if self.diff_time >self.click_time and self.isNotRising==0:
         print("click")
         if self.cb_click.__class__.__name__ != 'NoneType':
           self.cb_click()
-        self.diff_time=0
+        self.time=0
+        return  
+        
+#网络检测 
+def  isOline():
+  try:
+   urequests.get("http://www.baidu.com")
+  except:
+   return False
+  return True
+
+class  _wifi:
+ 
+  def __init__(self,ssd,pwd):
+    self.ssd=ssd
+    self.pwd=pwd
+    self.hostname="micropython" 
+    self.wifi0 = network.WLAN(network.STA_IF)  
+  def connect(self):
+    self.wifi0.active(True) #激活WIFI
+    self.wifi0.config(dhcp_hostname=self.hostname)
+    if not self.wifi0.isconnected(): #判断WIFI连接状态
+
+          print('[wifi]:正在连接...')
+
+          self.wifi0.connect(self.ssd, self.pwd) #essid为WIFI名称,password为WIFI密码
+          time.sleep(1)
+          if self.wifi0.isconnected():
+
+              pass # WIFI没有连接上的话做点什么,这里默认pass啥也不做
+
+    print('network config[网络信息]:', self.wifi0.ifconfig())    
+
+  def mdns(self,host=0):
+    self.disconnect()
+    self.hostname=host
+    print(host,".local")
+    time.sleep(1)
+    self.connect()
+  def disconnect(self):
+    self.wifi0.disconnect()
+    
+  def info(self):
+    return self.wifi0.ifconfig()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
