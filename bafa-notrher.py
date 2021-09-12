@@ -18,6 +18,7 @@ class bfMqtt:
         self.lw_retain = False
         self.topic=topic
         self.cb=cb
+        self.online=None
         
 
     def _send_str(self, s):
@@ -49,6 +50,8 @@ class bfMqtt:
           self.sock.connect(addr)
         except  Exception as e :
           print("connect:",e)
+          self.online=0
+          self.online=0
           return
         premsg = bytearray(b"\x10\0\0\0\0\0")
         msg = bytearray(b"\x04MQTT\x04\x02\0\0")
@@ -83,6 +86,7 @@ class bfMqtt:
             print("connect:",resp[3])
             return
         self.subscribe()
+        self.online=1
         return resp[2] & 1
         
 

@@ -3,7 +3,7 @@ import bafa
         
 
 try:
-    ##瀹氭椂
+    ##定时
     try:
       import task
     except:
@@ -63,7 +63,7 @@ try:
        doTaskMsg(msg.decode()) 
        
     Prav_key=key
-    _bfmq=bafa.bfmq(Prav_key,p_data,"power001")
+    _bfmq=bafa.bfMqtt(Prav_key,"power001",p_data)
     _bfmq.connect()
 
     _bfmq.publish(str(wifi.ifconfig()).encode())
@@ -81,7 +81,8 @@ try:
           p12.sw(delay=150)
       if time.time()%dely_time==0:
         led("red") if power.sw('') else led("blue")
-        _bfmq.ping()
+        _bfmq.publish( "on" if power.sw('') else "off")
+        
         time.sleep(1)
       _bfmq.check_msg()
 
