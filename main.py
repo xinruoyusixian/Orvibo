@@ -1,51 +1,9 @@
 import time
-import bafa
-        
+import bafa,taskFunc
+
 
 try:
-    ##定时
-    try:
-      import task
-    except:
-      lib.file("task.py",'list=[]')
-      import task
-    def doTask():
-      if len(task.list)!=0:
-        for i in task.list:
-          if time.mktime(i[0]+(0,0)) < time.time():
-            task.list.remove(i)
-            power.sw(i[1])
-            lib.file("task.py",'list='+str(task.list))
-            _bfmq.publish(b"on") if power.sw('') else _bfmq.publish(b"off")
-    def doTaskMsg(msg):        
-      if msg[:3]=='add':
-        try:
-          task.list.append([tuple( int(i) for i in msg.split("#")[1].split("-")),int(msg.split("#")[2])])
-          lib.file("task.py",'list='+str(task.list))
-          _bfmq.publish(b'success')
-          return 
-        except OSError as e:
-          _bfmq.publish(str(e).encode())
-          return 
-      if msg[:3]=='del':
-        try:
-          task.list.remove( task.list[int(msg.split("#")[1])])
-          lib.file("task.py",'list='+str(task.list))
-          _bfmq.publish(str(task.list))
-          return 
-        except OSError as e:
-          _bfmq.publish(str(e).encode())       
-          return
-      if msg=="query":
-        try:
-          _bfmq.publish(str(task.list))
-          return 
-        except OSError as e:
-          _bfmq.publish(str(e).encode())  
-          return 
-      
-    DEBUG=1
-
+    task=taskFunc.Task()  
     def p_data(topic,msg):
        print(topic,msg)
        if msg==b'reset':
@@ -61,7 +19,9 @@ try:
           lib.update_time()
           _bfmq.publish("%s/%s/%s %s:%s:%s"%time.localtime()[:6]+ " Run:%.2f h"%(time.ticks_ms()/3600000))
           _bfmq.publish(str(wifi.ifconfig()[0]))
-       doTaskMsg(msg.decode()) 
+       ret=task.TaskMsg(msg.decode())
+       if ret != None:
+          _bfmq.publish( ret) 
        
     Prav_key=key
     _bfmq=bafa.bfMqtt(Prav_key,"power001",p_data)
@@ -70,7 +30,9 @@ try:
     _bfmq.publish(str(wifi.ifconfig()).encode())
     lib.update_time()
     while 1:
-      doTask()
+      r=task.doTask()
+      if r!= None:
+        power.sw(r)
       if  not wifi.isconnected():
           p4.sw(delay=150)
           continue
