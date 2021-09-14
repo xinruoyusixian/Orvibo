@@ -1,4 +1,5 @@
 
+
 import network
 from machine import Pin, PWM ,RTC,Timer
 import time,machine,ntptime,sys
@@ -130,54 +131,51 @@ class btn:
   
   def __init__(self,p):
     self.time_ms=time.ticks_ms
-    self.time=0
     self._btn=Pin(p,Pin.IN)
-    self.diff_time=0
-    self.timer=-999
-    self.press_time=400 #长按最小时间
-    self.click_time=80 #单击最小时间
     self._btn.irq(handler=self.FALLING,trigger=(Pin.IRQ_FALLING))
-    tim=Timer(self.timer)     
-    tim.init(period=1, mode=Timer.PERIODIC, callback=self.check)     
+    self.tim=Timer(-999)
+    self.pressTime=500
+    self.clickTimeMin=80#单机最小时间
+    self.timeRising=0
     self.cb_press=None
     self.cb_click=None
-    self.isNotRising=1
-    
+    self.cb_click2=None
+    #    
 
   def FALLING(self,_e=0):
-      self.isNotRising=1
-      self.time=self.time_ms()
+      self.timeFalling=self.time_ms()
+      self.timeRising=0
+      self.tim.init(period=1, mode=Timer.PERIODIC, callback=self.check) 
       self._btn.irq(handler=self.RISING,trigger=(Pin.IRQ_RISING))
       
 
   def RISING(self,_e=0):
-      self.isNotRising=0
-      tmp=self.time_ms()-self.time
-      if tmp<self.click_time:
-        return
-      self.diff_time=tmp
+      self.timeRising=self.time_ms()
+      self.tim.deinit()
       self._btn.irq(handler=self.FALLING,trigger=(Pin.IRQ_FALLING))
-  
+      diffTime=self.timeRising-self.timeFalling
+      if diffTime > self.clickTimeMin and diffTime <self.pressTime :
+          print("click",diffTime)
+          if self.cb_click.__class__.__name__ != 'NoneType':
+            self.cb_click()
+          return 
+         
   def press(self,cb,s=0):
       self.cb_press=cb
-      self.press_time= self.press_time if s==0 else s
+      self.pressTime= self.pressTime if s==0 else s
       
   def click(self,cb):
       self.cb_click=cb
-  def check(self,_e=0):
-      if self.time==0:
-        return
-      realTime=self.time_ms()
-      if realTime-self.time>self.press_time and self.isNotRising==1:
-          print("press")
-          if self.cb_press.__class__.__name__ != 'NoneType':
-            self.cb_press()
-          self.time=0
-          return
 
-      if self.diff_time >self.click_time and self.isNotRising==0:
-        print("click")
-        if self.cb_click.__class__.__name__ != 'NoneType':
-          self.cb_click()
-        self.time=0
-        return  
+  def check(self,_e=0):
+      diffTime=self.time_ms()-self.timeFalling
+     
+      if diffTime >= self.pressTime:
+        print("press",diffTime)
+        self.tim.deinit()
+        if self.cb_press.__class__.__name__ != 'NoneType':
+            self.cb_press()
+        return
+
+
+
