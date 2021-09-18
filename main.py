@@ -10,10 +10,11 @@ try:
            machine.reset()
        if msg==b'on':
          power.sw(1)
-         led("red")
+         lib.file(_Stat,"1")
        if msg==b'off':
-         power.sw(0)  
-         led("blue")
+         power.sw(0) 
+         lib.file(_Stat,"0")
+       led("red") if power.sw('') else led("blue") 
        if msg==b'get':  
           _bfmq.publish(b"on") if power.sw('') else _bfmq.publish(b"off")
           lib.update_time()
@@ -30,9 +31,12 @@ try:
     _bfmq.publish(str(wifi.ifconfig()).encode())
     lib.update_time()
     while 1:
+      
       r=task.doTask()
       if r!= None:
         power.sw(r)
+        lib.file(_Stat,"1" if power.sw('') else "0")
+        led("red") if power.sw('') else led("blue")
       if  not wifi.isconnected():
           p4.sw(delay=150)
           continue
@@ -43,9 +47,8 @@ try:
           dely_time= 2
           p12.sw(delay=150)
       if time.time()%dely_time==0:
-        led("red") if power.sw('') else led("blue")
         _bfmq.publish( "on" if power.sw('') else "off")
-        
+        led("red") if power.sw('') else led("blue")
         time.sleep(1)
       _bfmq.check_msg()
 
