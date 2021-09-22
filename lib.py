@@ -1,4 +1,8 @@
 
+
+
+
+
 import network
 from machine import Pin, PWM ,RTC,Timer
 import time,machine,ntptime,sys
@@ -24,7 +28,7 @@ def file(file,c=''):
         print(e,"文件不存在")
         return False
     else:
-      f=open(file,"w")
+      f=open(file,"wb")
       f.write(c)
       f.flush()
       f.close()
@@ -32,18 +36,23 @@ def file(file,c=''):
 class flashLed:
     def __init__(self,pin):
       self.pin=Pin(pin,Pin.OUT)
-      self.delay=250
+      self.delay=500
       self._time1=time.ticks_ms()
       self.period=1
       self.freq=100
       self.max=1022
-      self.duty=self.max      
-    def sw(self,s=2,delay=250):
+      self.duty=self.max
+
+    def timer(self,cb):
+        self.tim=Timer(-1)
+        self.tim.init(period=self.period, mode=Timer.PERIODIC, callback=cb)      
+    def sw(self,s=2,delay=0):
       if type(s).__name__=="Timer" or s==2:
+        self.delay= self.delay if delay==0  else delay
         if (time.ticks_ms()- self._time1)>self.delay:
-          self.delay= self.delay if delay==250  else delay
           self.pin.value(0) if self.pin.value() else self.pin.value(1)
           self._time1=time.ticks_ms()
+          return
       if s==1:
         self.pin.value(1)
         return
@@ -71,9 +80,7 @@ class flashLed:
         self.pin.init(Pin.OUT)
 
         return
-    def timer(self,cb):
-        self.tim=Timer(-1)  
-        self.tim.init(period=self.period, mode=Timer.PERIODIC, callback=cb)
+
     def bre(self,loop=1,step=1):
         self.step=step
         if loop==1:
@@ -83,13 +90,13 @@ class flashLed:
           self.repat()
         return  
     def repat(self,s=1):
+        self.step=s if type(s).__name__!="Timer" else self.step
         self.pwm = PWM(self.pin)
         self.duty=self.duty-self.step
         if self.duty< -self.max:
            self.duty=self.max
         self.pwm.init(freq=self.freq, duty=abs(self.duty))
         return
-
 
 
 
@@ -130,65 +137,71 @@ def wifi(ssd='',pwd='',hostname="MicroPython"):
 class btn:
   
   def __init__(self,p):
-    self.time=0
+    self.time_ms=time.ticks_ms
     self._btn=Pin(p,Pin.IN)
-    self.diff_time=0
-    self.timer=-999
-    self.time_old=0 
-    self.press_time=400 #长按最小时间
-    self.click_time=80 #单击最小时间
-    self.double_click_time_min=250 #最小双击间隔
-    self.double_click_time_min=250 #最小双击间隔
-    self.diff_err_time=80  #误差时间
     self._btn.irq(handler=self.FALLING,trigger=(Pin.IRQ_FALLING))
-    tim=Timer(self.timer)     
-    tim.init(period=1, mode=Timer.PERIODIC, callback=self.check)     
+    self.tim=Timer(-999)
+    self.pressTime=500
+    self.clickTimeMin=80#单机最小时间
+    self.timeRising=0
     self.cb_press=None
     self.cb_click=None
-  def isset(self,v): 
-   try : 
-     type (eval(v)) 
-   except : 
-     return  0 
-   else : 
-     return  1    
-     
+    self.cb_click2=None
+    self.diffTime1=999
+    self.timeArr=[0,0]
+
   def FALLING(self,_e=0):
-      self.time_old=self.time
-      self.time=time.ticks_ms()
+      self.timeFalling=self.time_ms()
+      self.timeArr.append(self.timeFalling)
+      self.timeRising=0
+      self.tim.init(period=1, mode=Timer.PERIODIC, callback=self.check) 
       self._btn.irq(handler=self.RISING,trigger=(Pin.IRQ_RISING))
       
-
+  def clickDely(self,_e=0):
+    self.diffTime1=self.time_ms()-self.clickRuntime
+    if self.diffTime1>300:
+      self.tim1.deinit()
+      print("click")
+      self.cb(self.cb_click)
+      
   def RISING(self,_e=0):
-      tmp=time.ticks_ms()-self.time
-      if tmp<self.diff_err_time:
-        return
-      self.diff_time=tmp
+      self.timeRising=self.time_ms()
+      self.tim.deinit()
       self._btn.irq(handler=self.FALLING,trigger=(Pin.IRQ_FALLING))
-  
+      diffTime=self.timeRising-self.timeFalling
+      if diffTime > self.clickTimeMin and diffTime <self.pressTime :
+          #click event delay, if you don't want to use doubleClick you can delete it,put click code at here
+          if self.diffTime1<300 and (self.time_ms()-self.timeArr[-2])<500:
+            self.tim1.deinit()
+            print("doubleClick")
+            self.cb(self.cb_click2)
+            return
+          self.clickRuntime=self.time_ms()
+          self.tim1=Timer(-998)
+          self.tim1.init(period=1, mode=Timer.PERIODIC, callback=self.clickDely) 
+
   def press(self,cb,s=0):
       self.cb_press=cb
-      self.press_time= self.press_time if s==0 else s
+      self.pressTime= self.pressTime if s==0 else s
       
-  def click(self,cb,s=0):
+  def click(self,cb):
       self.cb_click=cb
-      self.press_time= self.press_time if s==0 else s  
+      
+  def cb(self,cb):
+        if cb.__class__.__name__ != 'NoneType':
+           cb()  
+  def doubleClick(self,cb):
+      self.cb_click2=cb
   def check(self,_e=0):
-    
-      if self.diff_time >self.press_time:
-        print("press")
-        if self.cb_press.__class__.__name__ != 'NoneType':
-          self.cb_press()
-        self.diff_time=0
-        
-        return
- # 双击 暂未完成 dc=time.ticks_ms()-self.time_old
-     
-      if self.diff_time >self.click_time:
-        print("click")
-        if self.cb_click.__class__.__name__ != 'NoneType':
-          self.cb_click()
-        self.diff_time=0
+      diffTime=self.time_ms()-self.timeFalling
+      if diffTime >= self.pressTime:
+        print("press",diffTime)
+        self.tim.deinit()
+        self.cb(self.cb_press)
+
+
+
+
 
 
 
