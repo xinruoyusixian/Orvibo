@@ -2,6 +2,9 @@
 
 
 
+
+
+
 import uos, machine,time,lib
 
 import gc
@@ -72,7 +75,13 @@ if int(lib.file("isRset.py")) >=3:
 
               if url =="/":
 
-                serv.sendall('<form action="wifi">SSD:<br><input type="text" name="ssd" value=""><br>PASSWORD<br><input type="text" name="pwd" value=""><hr>KEY<br><input type="text" name="key" value=""><input type="submit" value="Submit"></form> ')
+                serv.sendall('''
+                <form action="wifi_name">SSD:<br><input typ
+                e="text" name="ssd" value="">
+                <br>wifi_passwd<br><input type="text" name="pwd" value="">
+                <hr>topic<br><input type="text" name="topic" value="">
+                <hr>token<br><input type="text" name="key" value="">
+                <input type="submit" value="Submit"></form> ''')
 
                 serv.sendall('<hr/>')
 
@@ -90,7 +99,7 @@ if int(lib.file("isRset.py")) >=3:
 
                   if d.get("ssd") !=None and d.get("pwd")!=None:
 
-                    conf="ssd='%s'\r\npwd='%s' \r\nkey='%s'"%(d.get("ssd"),d.get("pwd"),d.get("key"))
+                    conf="ssd='%s'\r\npwd='%s' \r\nkey='%s' \r\ntopic='%s'"%(d.get("ssd"),d.get("pwd"),d.get("key"),d.get("topic"))
 
                     lib.file(_cfg,conf)
 
@@ -133,12 +142,17 @@ try:
   pwd=cfg.pwd
 
   key=cfg.key
+  
+  topic=cfg.topic
 
 except:
 
   _reset()
 
 wifi=lib.wifi(ssd,pwd,device)[0]
+
+
+
 
 
 
